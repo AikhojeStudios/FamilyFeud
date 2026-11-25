@@ -23,6 +23,13 @@ button{cursor:pointer}
 :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 
 .stage{position:relative;max-width:min(1500px,175vh);margin:0 auto;padding:clamp(10px,2vw,28px) max(2vw,10px) clamp(14px,2vw,28px)}
+.fsBtn{position:absolute;top:14px;right:14px;z-index:5;width:44px;height:44px;display:grid;place-items:center;border-radius:10px;border:2px solid rgba(255,200,61,.5);background:rgba(4,16,46,.55);color:#ffe39a;opacity:.55;transition:opacity .25s,transform .15s;backdrop-filter:blur(3px)}
+.fsBtn:hover{opacity:1;transform:scale(1.05);background:rgba(10,30,100,.75)}
+.fsBtn .fsOut{display:none}
+:fullscreen .fsBtn .fsIn,:-webkit-full-screen .fsBtn .fsIn{display:none}
+:fullscreen .fsBtn .fsOut,:-webkit-full-screen .fsBtn .fsOut{display:block}
+body.idle{cursor:none}body.idle .fsBtn{opacity:0;pointer-events:none}
+@media(max-width:600px){.fsBtn{top:8px;right:8px;width:38px;height:38px}}
 .stage::before,.stage::after{content:"";position:absolute;top:0;bottom:0;width:22%;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 18px,rgba(120,180,255,.08) 18px 22px);mask:linear-gradient(transparent,#000 30%,#000 70%,transparent)}
 .stage::before{left:0}.stage::after{right:0}
 .marquee{display:flex;justify-content:center;margin-bottom:clamp(6px,1.4vw,18px);position:relative;z-index:1}
@@ -113,6 +120,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 <body>
 <div id="app" data-view="both">
  <main class="stage" aria-label="Game board">
+  <button class="fsBtn" id="fsBtn" title="Full screen (F)" aria-label="Toggle full screen"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path class="fsIn" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><path class="fsOut" d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg></button>
   <div class="marquee"><div class="oval"><h1 id="title">Family Showdown</h1></div></div>
   <div class="row">
    <div class="team t0" id="tb0"><div class="tname" id="n0">Team One</div><div class="tscore" id="s0">0</div></div>
@@ -409,6 +417,10 @@ $('#iTitle').addEventListener('change',e=>act(()=>{S.title=e.target.value.trim()
 const host=$('#host');
 function toggleHost(){host.classList.toggle('closed');$('#hostToggle').textContent=host.classList.contains('closed')?'Show host controls':'Hide host controls'}
 $('#hostToggle').addEventListener('click',toggleHost);
+$('#fsBtn').addEventListener('click',()=>{audio();fullscreen()});
+// hide cursor when idle (nice during AirPlay / full screen)
+let idleT;const idleReset=()=>{document.body.classList.remove('idle');clearTimeout(idleT);idleT=setTimeout(()=>document.body.classList.add('idle'),2500)};
+['mousemove','keydown','touchstart'].forEach(ev=>addEventListener(ev,idleReset,{passive:true}));idleReset();
 
 // ---------- import ----------
 const AUTO=[35,25,15,10,6,4,2,1,1,1];
