@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bungee&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 /* VOICE: loud, warm, Saturday-night game show — big, bright, fun for the whole family
    IDEA: the studio survey board itself — flip panels, marquee bulbs, LED score boxes
@@ -128,6 +129,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
  <section class="host" id="host" aria-label="Host controls">
   <button class="tab" id="hostToggle">Hide host controls</button>
   <div class="hbody">
+   <div class="hrow" id="roomBar"></div>
    <div class="hrow">
     <button class="btn" data-a="prev" aria-label="Previous round">‹</button><span id="rlabel"></span><button class="btn" data-a="next" aria-label="Next round">›</button>
     <button class="btn gold" data-a="q" id="showq">Show question</button>
@@ -179,6 +181,25 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 
  <div class="gate" id="gate"><button id="gateB">Start the show</button></div>
 
+ <div class="modal" id="room" role="dialog" aria-modal="true" aria-labelledby="rh">
+  <div class="card">
+   <h2 id="rh">Start or join a game</h2>
+   <p class="muted">To control one game from different devices (TV + phone/laptop), start a new game on one device and join it on the others with the code.</p>
+   <div class="hrow">
+    <button class="btn gold" id="rNew">🎮 Start a new game</button>
+   </div>
+   <div class="hrow"><span class="muted">or</span></div>
+   <label>Join with a code
+    <input id="rCode" maxlength="4" placeholder="ABCD" style="text-transform:uppercase;font:400 28px/1 Anton,sans-serif;letter-spacing:.3em;text-align:center">
+   </label>
+   <div class="hrow">
+    <button class="btn" id="rJoin">Join game</button>
+    <button class="btn" id="rSolo">Play on one device only</button>
+   </div>
+   <p id="rMsg" style="color:var(--gold);margin:0;min-height:1.3em"></p>
+  </div>
+ </div>
+
  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mh">
   <div class="card">
    <h2 id="mh">Load questions</h2>
@@ -224,11 +245,70 @@ const hist=[];
 const R=()=>S.rounds[S.ri]||{q:'No questions loaded yet — open Game setup › Load questions',answers:[]};
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-function commit(){save();render();if(bc)try{bc.postMessage(S)}catch(e){}}
+function commit(){save();render();if(bc)try{bc.postMessage(S)}catch(e){}if(!fromPeer)peerBroadcast({t:'state',s:S})}
 function act(fn){hist.push(JSON.stringify(S));if(hist.length>50)hist.shift();fn();commit()}
 const fx=(t,extra)=>({t,id:Date.now()+Math.random(),...extra});
 if(bc)bc.onmessage=e=>{S=e.data;render()};
 addEventListener('storage',e=>{if(e.key===KEY){const n=load();if(n){S=n;render()}}});
+
+// --- room / peer sync ---
+const CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const PREFIX='fshowdown-';
+const genCode=()=>Array.from({length:4},()=>CHARS[Math.floor(Math.random()*CHARS.length)]).join('');
+let peer=null,myRoom=null,isHost=false,conns=new Map(),fromPeer=false,joinTry=0;
+function peerBroadcast(msg,skip){conns.forEach((c,k)=>{if(k!==skip&&c.open)try{c.send(msg)}catch(e){}})}
+function onPeerMsg(msg,fromKey){
+ if(!msg)return;
+ if(msg.t==='state'){fromPeer=true;S=msg.s;save();render();fromPeer=false;if(isHost)peerBroadcast(msg,fromKey)}
+ if(msg.t==='hello'&&isHost){const c=conns.get(fromKey);if(c&&c.open)try{c.send({t:'state',s:S})}catch(e){}}
+}
+function wireConn(c,key){
+ conns.set(key,c);
+ c.on('open',()=>{renderConn();if(!isHost){try{c.send({t:'hello'})}catch(e){}}});
+ c.on('data',m=>onPeerMsg(m,key));
+ c.on('close',()=>{conns.delete(key);renderConn()});
+ c.on('error',()=>{});
+}
+function startRoom(code){
+ if(!window.Peer){setTimeout(()=>startRoom(code),300);return}
+ isHost=true;myRoom=code.toUpperCase();updateHash();
+ if(peer)try{peer.destroy()}catch(e){}
+ peer=new Peer(PREFIX+myRoom,{debug:0});
+ peer.on('open',()=>renderConn());
+ peer.on('connection',c=>wireConn(c,c.peer));
+ peer.on('error',e=>{
+  if(e.type==='unavailable-id'){isHost=false;joinRoom(myRoom);return}
+  renderConn(e.type||'error');
+ });
+}
+function joinRoom(code){
+ if(!window.Peer){setTimeout(()=>joinRoom(code),300);return}
+ isHost=false;myRoom=code.toUpperCase();updateHash();
+ if(peer)try{peer.destroy()}catch(e){}
+ peer=new Peer(undefined,{debug:0});
+ peer.on('open',()=>{const c=peer.connect(PREFIX+myRoom,{reliable:true});wireConn(c,'host');renderConn()});
+ peer.on('error',e=>{
+  if(e.type==='peer-unavailable'){
+   if(joinTry++<2)setTimeout(()=>startRoom(myRoom),400);
+   else renderConn('No game with that code is open yet')
+  }else renderConn(e.type||'error');
+ });
+}
+function leaveRoom(){if(peer)try{peer.destroy()}catch(e){}peer=null;conns.clear();myRoom=null;isHost=false;updateHash();renderConn()}
+function renderConn(err){
+ const b=$('#roomBar');if(!b)return;
+ if(!myRoom){b.innerHTML='<button class="btn" data-a="room">🔗 Link devices</button><span class="muted">Not linked — host and board are separate</span>';return}
+ const n=[...conns.values()].filter(c=>c.open).length;
+ const share=location.origin+location.pathname+'#r='+myRoom;
+ const status=err?`<span style="color:var(--red)">${esc(err)}</span>`:(isHost?`<span class="muted">${n} device${n===1?'':'s'} joined</span>`:(n?`<span class="muted">Linked to game</span>`:`<span class="muted">Connecting…</span>`));
+ b.innerHTML=`<span class="pill">Game code <b style="font:400 20px/1 Anton,sans-serif;letter-spacing:.15em;margin-inline-start:6px">${esc(myRoom)}</b></span>${status}<button class="btn" data-a="copy-code" title="Copy join link">Copy link</button><button class="btn" data-a="leave">Leave game</button>`;
+}
+function updateHash(){
+ const parts=location.hash.slice(1).split('&').filter(p=>p&&!p.startsWith('r='));
+ if(myRoom)parts.push('r='+myRoom);
+ const h='#'+parts.join('&');
+ if(location.hash!==h)history.replaceState(null,'',h);
+}
 
 // ---------- sound ----------
 let ac=null;
@@ -312,6 +392,9 @@ const A={prev:()=>go(-1),next:()=>go(1),q:toggleQ,undo,strike,
  import:()=>{$('#msg').textContent='';$('#modal').classList.add('on');$('#mtext').focus()},
  export:()=>{const t=S.rounds.map(r=>[r.q,...r.answers.map(a=>`${a.a} ${a.p}`)].join('\n')).join('\n\n');navigator.clipboard.writeText(t).then(()=>flash('Copied!'),()=>flash('Copy blocked'))},
  sound:()=>{sound=!sound;if(gainN&&ac)gainN.gain.setTargetAtTime(sound?volume:0,ac.currentTime,.03);if(!sound)stopAll(200);renderHost()},fs:fullscreen,
+ room:()=>{$('#rMsg').textContent='';$('#rCode').value='';$('#room').classList.add('on')},
+ leave:()=>leaveRoom(),
+ 'copy-code':()=>{const url=location.origin+location.pathname+'#r='+myRoom;navigator.clipboard.writeText(url).then(()=>{const b=document.querySelector('[data-a=copy-code]');if(b){const t=b.textContent;b.textContent='Copied!';setTimeout(()=>b.textContent=t,1500)}},()=>{})},
  newgame:()=>{const b=$('#newB');if(Date.now()-newArm>3000){newArm=Date.now();b.textContent='Tap again to reset scores';setTimeout(()=>b.textContent='New game',3000);return}newArm=0;b.textContent='New game';act(()=>{S.teams.forEach(t=>t.score=0);S.ri=0;S.rev=[];S.bank=0;S.strikes=0;S.awarded=-1;S.showQ=false;S.fx=null})}
 };
 function flash(t){const b=document.querySelector('[data-a=export]');b.textContent=t;setTimeout(()=>b.textContent='Copy question list',1800)}
@@ -351,9 +434,18 @@ addEventListener('keydown',e=>{if(e.target.closest('input,textarea,select')||e.m
  if(/^[0-9]$/.test(k))return reveal(k==='0'?9:+k-1);
  const map={x:strike,q:toggleQ,arrowleft:()=>go(-1),arrowright:()=>go(1),a:()=>award(0),l:()=>award(1),z:undo,f:fullscreen,h:toggleHost};
  if(map[k]){e.preventDefault();map[k]()}});
-function setView(){const v=location.hash.slice(1);$('#app').dataset.view=v==='board'||v==='host'?v:'both';if(v==='board')$('#gate').classList.add('on')}
+function setView(){const parts=location.hash.slice(1).split('&'),v=parts.find(p=>p==='board'||p==='host');$('#app').dataset.view=v||'both';if(v==='board')$('#gate').classList.add('on')}
 addEventListener('hashchange',setView);
 $('#gateB').addEventListener('click',()=>{audio();$('#gate').classList.remove('on')});
+// room modal wiring
+$('#rNew').addEventListener('click',()=>{$('#room').classList.remove('on');joinTry=0;startRoom(genCode())});
+$('#rJoin').addEventListener('click',()=>{const c=$('#rCode').value.trim().toUpperCase();if(!/^[A-Z0-9]{4}$/.test(c)){$('#rMsg').textContent='Enter the 4-character code';return}$('#room').classList.remove('on');joinTry=0;joinRoom(c)});
+$('#rSolo').addEventListener('click',()=>{$('#room').classList.remove('on')});
+$('#rCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('#rJoin').click()});
+// auto-join from URL
+const hashRoom=(location.hash.slice(1).split('&').find(p=>p.startsWith('r='))||'').slice(2).toUpperCase();
+if(hashRoom&&/^[A-Z0-9]{4}$/.test(hashRoom))joinRoom(hashRoom);
+renderConn();
 setView();render();
 }
 </script>
