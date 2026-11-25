@@ -225,11 +225,15 @@ addEventListener('storage',e=>{if(e.key===KEY){const n=load();if(n){S=n;render()
 
 // ---------- sound ----------
 let ac=null;
-function audio(){if(!ac){try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(ac&&ac.state==='suspended')ac.resume().catch(()=>{});return ac}
+// Optional sound files: drop clips into sounds/ with these names and they replace the built-in sounds
+const FILES={ding:'sounds/correct.mp3',buzz:'sounds/wrong.mp3',fanfare:'sounds/award.mp3'},buf={};
+function loadSounds(a){Object.entries(FILES).forEach(([k,u])=>{fetch(u).then(r=>r.ok?r.arrayBuffer():Promise.reject()).then(b=>a.decodeAudioData(b)).then(d=>{buf[k]=d}).catch(()=>{})})}
+function audio(){if(!ac){try{ac=new(window.AudioContext||window.webkitAudioContext)();loadSounds(ac)}catch(e){}}if(ac&&ac.state==='suspended')ac.resume().catch(()=>{});return ac}
+function clip(k){const a=sound&&audio();if(!a||!buf[k])return false;const src=a.createBufferSource();src.buffer=buf[k];src.connect(a.destination);src.start();return true}
 function tone(f,dur,type,vol,delay=0){const a=sound&&audio();if(!a)return;const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+delay;o.type=type;o.frequency.value=f;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.015);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur+.05)}
-const ding=()=>{tone(1046,1,'sine',.35);tone(1568,1,'sine',.18,.03);tone(2093,.6,'sine',.08,.03)};
-const buzz=()=>{tone(92,.9,'sawtooth',.28);tone(98,.9,'square',.14)};
-const fanfare=()=>[523,659,784,1046].forEach((f,i)=>tone(f,i==3?.7:.25,'triangle',.25,i*.13));
+const ding=()=>{if(clip('ding'))return;tone(1046,1,'sine',.35);tone(1568,1,'sine',.18,.03);tone(2093,.6,'sine',.08,.03)};
+const buzz=()=>{if(clip('buzz'))return;tone(92,.9,'sawtooth',.28);tone(98,.9,'square',.14)};
+const fanfare=()=>{if(clip('fanfare'))return;[523,659,784,1046].forEach((f,i)=>tone(f,i==3?.7:.25,'triangle',.25,i*.13))};
 
 // ---------- board ----------
 function tween(el,from,to){if(from===to||reduce){el.textContent=to;return}const t0=performance.now(),d=800;const step=t=>{const k=Math.min(1,(t-t0)/d),e=1-(1-k)**3;el.textContent=Math.round(from+(to-from)*e);if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)}
