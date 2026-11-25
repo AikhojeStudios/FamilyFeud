@@ -148,6 +148,13 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <label>Points<select id="mult"><option value="1">Single</option><option value="2">Double</option><option value="3">Triple</option></select></label>
     <button class="btn" data-a="all">Reveal the rest</button>
    </div>
+   <div class="hrow" aria-label="Sound board">
+    <span class="pill">Sounds</span>
+    <button class="btn" data-a="play-clap">👏 Applause</button>
+    <button class="btn" data-a="play-intro" id="introB">🎵 Intro music</button>
+    <button class="btn" data-a="stopall">⏹ Stop</button>
+    <label style="flex:1;min-width:180px;display:flex;gap:10px;align-items:center">🔊<input type="range" id="vol" min="0" max="100" style="flex:1;min-height:auto" aria-label="Volume"><span id="volN" style="min-width:3ch;text-align:end">80</span></label>
+   </div>
    <details>
     <summary>Game setup</summary>
     <div class="setup">
@@ -226,11 +233,16 @@ addEventListener('storage',e=>{if(e.key===KEY){const n=load();if(n){S=n;render()
 // ---------- sound ----------
 let ac=null;
 // Optional sound files: drop clips into sounds/ with these names and they replace the built-in sounds
-const FILES={ding:'sounds/correct.mp3',buzz:'sounds/wrong.mp3',fanfare:'sounds/award.mp3'},buf={};
+const FILES={ding:'sounds/correct.mp3',buzz:'sounds/wrong.mp3',fanfare:'sounds/award.mp3',clap:'sounds/clap.mp3',intro:'sounds/intro.mp3'},buf={};
+let gainN=null,volume=Math.max(0,Math.min(1,+localStorage.getItem('showdown-vol')));if(!volume&&volume!==0)volume=.8;
+const playing={};
 function loadSounds(a){Object.entries(FILES).forEach(([k,u])=>{fetch(u).then(r=>r.ok?r.arrayBuffer():Promise.reject()).then(b=>a.decodeAudioData(b)).then(d=>{buf[k]=d}).catch(()=>{})})}
-function audio(){if(!ac){try{ac=new(window.AudioContext||window.webkitAudioContext)();loadSounds(ac)}catch(e){}}if(ac&&ac.state==='suspended')ac.resume().catch(()=>{});return ac}
-function clip(k){const a=sound&&audio();if(!a||!buf[k])return false;const src=a.createBufferSource();src.buffer=buf[k];src.connect(a.destination);src.start();return true}
-function tone(f,dur,type,vol,delay=0){const a=sound&&audio();if(!a)return;const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+delay;o.type=type;o.frequency.value=f;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.015);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur+.05)}
+function audio(){if(!ac){try{ac=new(window.AudioContext||window.webkitAudioContext)();gainN=ac.createGain();gainN.gain.value=sound?volume:0;gainN.connect(ac.destination);loadSounds(ac)}catch(e){}}if(ac&&ac.state==='suspended')ac.resume().catch(()=>{});return ac}
+function clip(k){const a=sound&&audio();if(!a||!buf[k])return false;stopClip(k);const src=a.createBufferSource();src.buffer=buf[k];const g=a.createGain();g.gain.value=1;src.connect(g).connect(gainN);src.start();playing[k]={src,g};src.onended=()=>{if(playing[k]&&playing[k].src===src)delete playing[k]};return true}
+function stopClip(k,fade){const p=playing[k];if(!p||!ac)return;const now=ac.currentTime,d=fade?fade/1000:0;if(d>0){p.g.gain.cancelScheduledValues(now);p.g.gain.setValueAtTime(p.g.gain.value,now);p.g.gain.linearRampToValueAtTime(.0001,now+d);setTimeout(()=>{try{p.src.stop()}catch(e){}},fade+60)}else{try{p.src.stop()}catch(e){}}delete playing[k]}
+function stopAll(fade){Object.keys(playing).forEach(k=>stopClip(k,fade))}
+function setVolume(v){volume=Math.max(0,Math.min(1,v));localStorage.setItem('showdown-vol',volume);if(gainN)gainN.gain.setTargetAtTime(sound?volume:0,ac.currentTime,.03)}
+function tone(f,dur,type,vol,delay=0){const a=sound&&audio();if(!a)return;const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+delay;o.type=type;o.frequency.value=f;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.015);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(gainN);o.start(t);o.stop(t+dur+.05)}
 const ding=()=>{if(clip('ding'))return;tone(1046,1,'sine',.35);tone(1568,1,'sine',.18,.03);tone(2093,.6,'sine',.08,.03)};
 const buzz=()=>{if(clip('buzz'))return;tone(92,.9,'sawtooth',.28);tone(98,.9,'square',.14)};
 const fanfare=()=>{if(clip('fanfare'))return;[523,659,784,1046].forEach((f,i)=>tone(f,i==3?.7:.25,'triangle',.25,i*.13))};
@@ -259,6 +271,8 @@ function playFx(){
  if(f.t==='ding')ding();
  if(f.t==='strike'){buzz();const s=$('#strikes');s.dataset.n=f.n;s.innerHTML=XSVG.repeat(f.n);s.classList.add('show');clearTimeout(strikeTimer);strikeTimer=setTimeout(()=>s.classList.remove('show'),1500)}
  if(f.t==='award'){fanfare();const t=$('#tb'+f.team);t.classList.remove('win');void t.offsetWidth;t.classList.add('win')}
+ if(f.t==='play')clip(f.name);
+ if(f.t==='stop')f.name?stopClip(f.name,f.fade||0):stopAll(f.fade||0);
 }
 
 // ---------- host ----------
@@ -275,6 +289,8 @@ function renderHost(){
  const set=(id,v)=>{const el=$(id);if(document.activeElement!==el)el.value=v};
  set('#iTitle',S.title);set('#iN0',S.teams[0].name);set('#iN1',S.teams[1].name);set('#iS0',S.teams[0].score);set('#iS1',S.teams[1].score);
  $('#soundB').textContent=sound?'Sound on':'Sound off';
+ $('#introB').textContent=S.playing==='intro'?'⏸ Stop intro':'🎵 Intro music';
+ const vs=$('#vol'),vp=Math.round(volume*100);if(document.activeElement!==vs)vs.value=vp;$('#volN').textContent=vp;
 }
 function render(){renderBoard();renderHost();playFx()}
 
@@ -289,15 +305,19 @@ let newArm=0;
 const A={prev:()=>go(-1),next:()=>go(1),q:toggleQ,undo,strike,
  x1:()=>act(()=>{S.fx=fx('strike',{n:1})}),clearx:()=>act(()=>{S.strikes=0}),
  aw0:()=>award(0),aw1:()=>award(1),
+ 'play-clap':()=>act(()=>{S.fx=fx('play',{name:'clap'})}),
+ 'play-intro':()=>act(()=>{if(S.playing==='intro'){S.fx=fx('stop',{name:'intro',fade:600});S.playing=null}else{S.fx=fx('play',{name:'intro'});S.playing='intro'}}),
+ stopall:()=>act(()=>{S.fx=fx('stop',{fade:400});S.playing=null}),
  all:()=>act(()=>{R().answers.forEach((a,i)=>S.rev[i]=true);S.fx=fx('ding')}),
  import:()=>{$('#msg').textContent='';$('#modal').classList.add('on');$('#mtext').focus()},
  export:()=>{const t=S.rounds.map(r=>[r.q,...r.answers.map(a=>`${a.a} ${a.p}`)].join('\n')).join('\n\n');navigator.clipboard.writeText(t).then(()=>flash('Copied!'),()=>flash('Copy blocked'))},
- sound:()=>{sound=!sound;renderHost()},fs:fullscreen,
+ sound:()=>{sound=!sound;if(gainN&&ac)gainN.gain.setTargetAtTime(sound?volume:0,ac.currentTime,.03);if(!sound)stopAll(200);renderHost()},fs:fullscreen,
  newgame:()=>{const b=$('#newB');if(Date.now()-newArm>3000){newArm=Date.now();b.textContent='Tap again to reset scores';setTimeout(()=>b.textContent='New game',3000);return}newArm=0;b.textContent='New game';act(()=>{S.teams.forEach(t=>t.score=0);S.ri=0;S.rev=[];S.bank=0;S.strikes=0;S.awarded=-1;S.showQ=false;S.fx=null})}
 };
 function flash(t){const b=document.querySelector('[data-a=export]');b.textContent=t;setTimeout(()=>b.textContent='Copy question list',1800)}
 $('#host').addEventListener('click',e=>{audio();const r=e.target.closest('[data-rev]');if(r)return reveal(+r.dataset.rev);const b=e.target.closest('[data-a]');if(b&&A[b.dataset.a])A[b.dataset.a]()});
 $('#mult').addEventListener('change',e=>act(()=>{S.mult=+e.target.value||1}));
+$('#vol').addEventListener('input',e=>{audio();setVolume(+e.target.value/100);$('#volN').textContent=e.target.value});
 $('#iTitle').addEventListener('change',e=>act(()=>{S.title=e.target.value.trim()||'Family Showdown'}));
 [0,1].forEach(t=>{
  $('#iN'+t).addEventListener('change',e=>act(()=>{S.teams[t].name=e.target.value.trim()||(t?'Team Two':'Team One')}));
