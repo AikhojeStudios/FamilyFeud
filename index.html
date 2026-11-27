@@ -102,7 +102,10 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 .buzz.on{display:grid;animation:buzzFade .25s ease}
 .buzz::before,.buzz::after{content:"";position:absolute;left:0;right:0;height:14px;background:repeating-linear-gradient(90deg,var(--gold) 0 10px,transparent 10px 24px);filter:drop-shadow(0 0 6px var(--gold))}
 .buzz::before{top:16px}.buzz::after{bottom:16px}
-.buzzBtn{position:relative;width:min(76vh,76vw);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 36% 30%,#ff7a7a 0%,#e5262b 42%,#8a0b0f 85%,#3a0304 100%);border:clamp(6px,1vw,14px) solid var(--gold);box-shadow:0 0 0 clamp(5px,.7vw,10px) #04102e,0 0 90px rgba(229,38,43,.55),0 30px 60px rgba(0,0,0,.6),inset 0 -40px 80px rgba(0,0,0,.4),inset 0 20px 40px rgba(255,255,255,.1);display:grid;place-items:center;animation:buzzPulse 1.3s ease-in-out infinite;transition:transform .08s}
+.buzzBtn{position:relative;width:min(76vh,76vw);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 36% 30%,#ff7a7a 0%,#e5262b 42%,#8a0b0f 85%,#3a0304 100%);border:clamp(6px,1vw,14px) solid var(--gold);box-shadow:0 0 0 clamp(5px,.7vw,10px) #04102e,0 0 90px rgba(229,38,43,.55),0 30px 60px rgba(0,0,0,.6),inset 0 -40px 80px rgba(0,0,0,.4),inset 0 20px 40px rgba(255,255,255,.1);display:grid;place-items:center;animation:buzzPulse 1.3s ease-in-out infinite;transition:transform .08s;padding:0;cursor:pointer;color:#fff}
+.buzzClose{position:absolute;top:36px;right:36px;z-index:2;width:56px;height:56px;border-radius:50%;background:rgba(10,8,14,.7);color:#fff;border:2px solid rgba(255,255,255,.35);font:400 24px/1 Inter,sans-serif;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(4px);transition:background .15s,transform .1s}
+.buzzClose:hover{background:rgba(229,38,43,.9);transform:scale(1.05)}
+@media(max-width:600px){.buzzClose{top:18px;right:18px;width:44px;height:44px;font-size:20px}}
 .buzz:active .buzzBtn,.buzzBtn:active{transform:scale(.96);animation:none}
 .buzzHl{position:absolute;top:8%;left:16%;width:40%;height:28%;border-radius:50%;background:radial-gradient(ellipse,rgba(255,220,220,.6),transparent 65%);filter:blur(4px);pointer-events:none}
 .buzzTxt{position:relative;font:400 clamp(44px,11vw,180px)/.92 Bungee,Impact,sans-serif;color:#fff;text-align:center;letter-spacing:.02em;text-shadow:0 4px 0 #7a0006,0 8px 0 #4a0003,0 16px 28px rgba(0,0,0,.7);pointer-events:none}
@@ -202,8 +205,9 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 
  <div class="gate" id="gate"><button id="gateB">Start the show</button></div>
 
- <div class="buzz" id="buzz" role="button" tabindex="0" aria-label="Open the round — tap to buzz in">
-  <div class="buzzBtn"><div class="buzzHl"></div><span class="buzzTxt">BUZZ<br>IN</span></div>
+ <div class="buzz" id="buzz" aria-label="Round buzzer">
+  <button class="buzzClose" id="buzzClose" aria-label="Close buzzer" title="Close (Esc)">✕</button>
+  <button class="buzzBtn" id="buzzBtn" aria-label="Tap to buzz in"><div class="buzzHl"></div><span class="buzzTxt">BUZZ<br>IN</span></button>
  </div>
 
  <div class="modal" id="room" role="dialog" aria-modal="true" aria-labelledby="rh">
@@ -450,7 +454,8 @@ const A={prev:()=>go(-1),next:()=>go(1),q:toggleQ,undo,strike,
  leave:()=>leaveRoom(),
  'copy-code':()=>{const url=location.origin+location.pathname+'#r='+myRoom;navigator.clipboard.writeText(url).then(()=>{const b=document.querySelector('[data-a=copy-code]');if(b){const t=b.textContent;b.textContent='Copied!';setTimeout(()=>b.textContent=t,1500)}},()=>{})},
  'open-round':()=>act(()=>{S.buzz=true}),
- 'hit-buzz':()=>{if(!S.buzz)return;audio();act(()=>{S.buzz=false;S.fx=fx('play',{name:'buzzer'})})},
+ 'hit-buzz':()=>{if(!S.buzz)return;audio();act(()=>{S.fx=fx('play',{name:'buzzer'})})},
+ 'close-buzz':()=>act(()=>{S.buzz=false}),
  newgame:()=>{const b=$('#newB');if(Date.now()-newArm>3000){newArm=Date.now();b.textContent='Tap again to reset scores';setTimeout(()=>b.textContent='New game',3000);return}newArm=0;b.textContent='New game';act(()=>{S.teams.forEach(t=>t.score=0);S.ri=0;S.rev=[];S.bank=0;S.strikes=0;S.awarded=-1;S.showQ=false;S.mult=1;S.buzz=false;S.fx=null})},
  reset:()=>{const b=$('#resetB');if(Date.now()-resetArm>3000){resetArm=Date.now();b.textContent='Tap again to confirm';setTimeout(()=>{b.textContent='↻ Reset game';resetArm=0},3000);return}resetArm=0;b.textContent='↻ Reset game';act(()=>{S.teams.forEach(t=>t.score=0);S.ri=0;S.rev=[];S.bank=0;S.strikes=0;S.awarded=-1;S.showQ=false;S.mult=1;S.buzz=false;S.fx=null})}
 };
@@ -467,8 +472,8 @@ const host=$('#host');
 function toggleHost(){host.classList.toggle('closed');$('#hostToggle').textContent=host.classList.contains('closed')?'Show host controls':'Hide host controls'}
 $('#hostToggle').addEventListener('click',toggleHost);
 $('#fsBtn').addEventListener('click',()=>{audio();fullscreen()});
-$('#buzz').addEventListener('click',()=>A['hit-buzz']());
-$('#buzz').addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();A['hit-buzz']()}});
+$('#buzzBtn').addEventListener('click',()=>A['hit-buzz']());
+$('#buzzClose').addEventListener('click',e=>{e.stopPropagation();A['close-buzz']()});
 // hide cursor when idle (nice during AirPlay / full screen)
 let idleT;const idleReset=()=>{document.body.classList.remove('idle');clearTimeout(idleT);idleT=setTimeout(()=>document.body.classList.add('idle'),2500)};
 ['mousemove','keydown','touchstart'].forEach(ev=>addEventListener(ev,idleReset,{passive:true}));idleReset();
@@ -492,7 +497,7 @@ $('#mload').addEventListener('click',()=>{let rounds;try{rounds=parse($('#mtext'
  $('#msg').textContent=`Loaded ${rounds.length} round${rounds.length>1?'s':''}. You now have ${S.rounds.length}.`;$('#mtext').value=''});
 
 // ---------- keys & views ----------
-addEventListener('keydown',e=>{if(e.target.closest('input,textarea,select')||e.metaKey||e.ctrlKey||e.altKey)return;if(S.buzz){if(e.key===' '||e.key==='Enter'||e.key==='b'||e.key==='B'){e.preventDefault();A['hit-buzz']()}else if(e.key==='Escape'){e.preventDefault();act(()=>{S.buzz=false})}return}if($('#modal').classList.contains('on')){if(e.key==='Escape')$('#modal').classList.remove('on');return}
+addEventListener('keydown',e=>{if(e.target.closest('input,textarea,select')||e.metaKey||e.ctrlKey||e.altKey)return;if(S.buzz){if(e.key===' '||e.key==='Enter'||e.key==='b'||e.key==='B'){e.preventDefault();A['hit-buzz']()}else if(e.key==='Escape'){e.preventDefault();A['close-buzz']()}return}if($('#modal').classList.contains('on')){if(e.key==='Escape')$('#modal').classList.remove('on');return}
  audio();const k=e.key.toLowerCase();
  if(/^[0-9]$/.test(k))return reveal(k==='0'?9:+k-1);
  const map={x:strike,q:toggleQ,arrowleft:()=>go(-1),arrowright:()=>go(1),a:()=>award(0),l:()=>award(1),z:undo,f:fullscreen,h:toggleHost};
