@@ -59,7 +59,7 @@ h1{margin:0;font:400 clamp(26px,5.2vw,78px)/1 Bungee,Impact,sans-serif;text-alig
 .front{justify-content:center;background:linear-gradient(#6f9cf5,#3f74e6 42%,#2a5fda 46%,#2f66de)}
 .num{display:grid;place-items:center;height:86%;aspect-ratio:1.3;border-radius:50%;background:radial-gradient(ellipse at 50% 35%,#1e3f95,#0b1f5e);box-shadow:0 2px 6px rgba(0,0,0,.35);font:400 clamp(16px,4.4cqw,58px)/1 Anton,Impact,sans-serif;color:#fff;text-shadow:0 2px 6px #000}
 .back{transform:rotateX(180deg);background:linear-gradient(#173f9e,#0f2f86);overflow:hidden}
-.ans{flex:1;text-align:center;padding:0 6px;font:400 clamp(13px,3.3cqw,46px)/1 Anton,Impact,sans-serif;text-transform:uppercase;letter-spacing:.01em;text-shadow:0 2px 4px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ans{flex:1;text-align:center;padding:0 6px;font:400 clamp(13px,3.3cqw,46px)/1 Anton,Impact,sans-serif;text-transform:uppercase;letter-spacing:.01em;text-shadow:0 2px 4px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden}
 .pts{flex:none;align-self:stretch;display:grid;place-items:center;width:22%;background:linear-gradient(#4f82ec,#2c60d8);border-inline-start:3px solid #0a226b;font:400 clamp(15px,3.6cqw,50px)/1 Anton,Impact,sans-serif}
 .qstrip{text-align:center;font:700 clamp(15px,2.6cqw,34px)/1.25 Inter,sans-serif;background:rgba(4,16,46,.75);border:2px solid #2a56c4;border-radius:12px;padding:clamp(8px,1.2cqw,16px) 16px;text-wrap:balance;transition:opacity .4s,transform .4s}
 .qstrip.off{opacity:0;transform:translateY(8px)}
@@ -142,6 +142,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <button class="btn" data-a="prev" aria-label="Previous round">‹</button><span id="rlabel"></span><button class="btn" data-a="next" aria-label="Next round">›</button>
     <button class="btn gold" data-a="q" id="showq">Show question</button>
     <button class="btn" data-a="undo">Undo</button>
+    <button class="btn red" data-a="reset" id="resetB">↻ Reset game</button>
    </div>
    <p class="hq" id="hq"></p>
    <div class="hans" id="hans"></div>
@@ -362,12 +363,16 @@ const fanfare=()=>{if(clip('fanfare'))return;[523,659,784,1046].forEach((f,i)=>t
 
 // ---------- board ----------
 function tween(el,from,to){if(from===to||reduce){el.textContent=to;return}const t0=performance.now(),d=800;const step=t=>{const k=Math.min(1,(t-t0)/d),e=1-(1-k)**3;el.textContent=Math.round(from+(to-from)*e);if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)}
+// Shrink any answer whose text would clip, so long ones like "STEAL / FIND TREASURE" still fit
+function fitAns(el){el.style.fontSize='';const need=el.scrollWidth,av=el.clientWidth;if(need>av+1&&av>0){const fs=parseFloat(getComputedStyle(el).fontSize);el.style.fontSize=Math.max(10,fs*(av/need)*0.96)+'px'}}
+function fitAll(){document.querySelectorAll('#board .ans').forEach(fitAns)}
+addEventListener('resize',()=>requestAnimationFrame(fitAll));
 function renderBoard(){
  const r=R(),key=S.ri+'|'+r.q+'|'+r.answers.length,b=$('#board');
  const n=r.answers.length>8?10:8;
  if(builtFor!==key){builtFor=key;b.style.setProperty('--rows',n/2);
   const rows=n/2,k=Math.ceil(r.answers.length/2),order=[];for(let c=0;c<2;c++)for(let j=0;j<rows;j++){const i=c*k+j;order.push(j<k&&i<r.answers.length?i:-1)}
-  b.innerHTML=order.map(i=>{const a=r.answers[i];return a?`<div class="slot" data-i="${i}"><div class="flip"><div class="face front"><span class="num">${i+1}</span></div><div class="face back"><span class="ans">${esc(a.a)}</span><span class="pts">${esc(a.p)}</span></div></div></div>`:'<div class="slot empty"></div>'}).join('')}
+  b.innerHTML=order.map(i=>{const a=r.answers[i];return a?`<div class="slot" data-i="${i}"><div class="flip"><div class="face front"><span class="num">${i+1}</span></div><div class="face back"><span class="ans">${esc(a.a)}</span><span class="pts">${esc(a.p)}</span></div></div></div>`:'<div class="slot empty"></div>'}).join('');requestAnimationFrame(fitAll)}
  b.querySelectorAll('.slot[data-i]').forEach(el=>el.classList.toggle('on',!!S.rev[+el.dataset.i]));
  $('#title').textContent=S.title;
  $('#n0').textContent=S.teams[0].name;$('#n1').textContent=S.teams[1].name;
@@ -414,7 +419,7 @@ const go=d=>{const n=S.rounds.length;if(!n)return;act(()=>{S.ri=(S.ri+d+n)%n;S.r
 const toggleQ=()=>act(()=>{S.showQ=!S.showQ});
 function undo(){if(!hist.length)return;S=JSON.parse(hist.pop());S.fx=null;commit()}
 function fullscreen(){const d=document.documentElement;try{(document.fullscreenElement?document.exitFullscreen():d.requestFullscreen()).catch(()=>{})}catch(e){}}
-let newArm=0;
+let newArm=0,resetArm=0;
 const A={prev:()=>go(-1),next:()=>go(1),q:toggleQ,undo,strike,
  x1:()=>act(()=>{S.fx=fx('strike',{n:1})}),clearx:()=>act(()=>{S.strikes=0}),
  aw0:()=>award(0),aw1:()=>award(1),
@@ -428,7 +433,8 @@ const A={prev:()=>go(-1),next:()=>go(1),q:toggleQ,undo,strike,
  room:()=>{$('#rMsg').textContent='';$('#rCode').value='';$('#room').classList.add('on')},
  leave:()=>leaveRoom(),
  'copy-code':()=>{const url=location.origin+location.pathname+'#r='+myRoom;navigator.clipboard.writeText(url).then(()=>{const b=document.querySelector('[data-a=copy-code]');if(b){const t=b.textContent;b.textContent='Copied!';setTimeout(()=>b.textContent=t,1500)}},()=>{})},
- newgame:()=>{const b=$('#newB');if(Date.now()-newArm>3000){newArm=Date.now();b.textContent='Tap again to reset scores';setTimeout(()=>b.textContent='New game',3000);return}newArm=0;b.textContent='New game';act(()=>{S.teams.forEach(t=>t.score=0);S.ri=0;S.rev=[];S.bank=0;S.strikes=0;S.awarded=-1;S.showQ=false;S.fx=null})}
+ newgame:()=>{const b=$('#newB');if(Date.now()-newArm>3000){newArm=Date.now();b.textContent='Tap again to reset scores';setTimeout(()=>b.textContent='New game',3000);return}newArm=0;b.textContent='New game';act(()=>{S.teams.forEach(t=>t.score=0);S.ri=0;S.rev=[];S.bank=0;S.strikes=0;S.awarded=-1;S.showQ=false;S.mult=1;S.fx=null})},
+ reset:()=>{const b=$('#resetB');if(Date.now()-resetArm>3000){resetArm=Date.now();b.textContent='Tap again to confirm';setTimeout(()=>{b.textContent='↻ Reset game';resetArm=0},3000);return}resetArm=0;b.textContent='↻ Reset game';act(()=>{S.teams.forEach(t=>t.score=0);S.ri=0;S.rev=[];S.bank=0;S.strikes=0;S.awarded=-1;S.showQ=false;S.mult=1;S.fx=null})}
 };
 function flash(t){const b=document.querySelector('[data-a=export]');b.textContent=t;setTimeout(()=>b.textContent='Copy question list',1800)}
 $('#host').addEventListener('click',e=>{audio();const r=e.target.closest('[data-rev]');if(r)return reveal(+r.dataset.rev);const b=e.target.closest('[data-a]');if(b&&A[b.dataset.a])A[b.dataset.a]()});
