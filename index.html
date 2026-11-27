@@ -246,16 +246,32 @@ const SAMPLE=[
  {q:"Name something mice probably have nightmares about.",answers:[["Cats",58],["Traps",31],["Out of cheese",5],["Exterminator / People",2]]},
  {q:"Name something they teach you to do at pirate training school.",answers:[["Say \"Arrrgh!\"",33],["Sword fight",24],["Steal / Find treasure",17],["Sail / Navigate",17],["Walk the plank",4],["Guzzle rum",4]]},
  {q:"Name something a momma's boy might tell his girlfriend she does almost as well as his mom.",answers:[["Cooks / Bakes",91],["Cleans / Laundry",3],["Hugs him",2],["Dresses him",2]]},
- {q:"Name a grocery item that only a really dumb bag boy / girl would put at the bottom of your bag.",answers:[["Eggs",46],["Bread",36],["Fruit",9],["Chips",2]]}
+ {q:"Name a grocery item that only a really dumb bag boy / girl would put at the bottom of your bag.",answers:[["Eggs",46],["Bread",36],["Fruit",9],["Chips",2]]},
+ {q:"Name something you need if you have a house full of kids.",answers:[["Food / Soft drinks",19],["Toys / Games",16],["Patience",13],["Television",7],["Money",6]]},
+ {q:"Name something that's hard to do with your eyes open.",answers:[["Sleep / Dream",75],["Sneeze",16],["Kiss",3],["Swim / Dive",3]]},
+ {q:"Name something kids do before they show their parents a bad report card.",answers:[["Brown-nose / Chores",43],["Hide it / Lose it",28],["Change grades",14],["Cry",9]]},
+ {q:"Name a part of your body where an insect could be living.",answers:[["Hair / Body hair",41],["Ear",40],["Stomach / Intestine",7],["Arm / Pits",4],["Brain",2]]},
+ {q:"Name something you can tell needs to be replaced just by the smell.",answers:[["Food / Milk",57],["Clothes / Shoes",11],["Air freshener",10],["Garbage / Bag",5],["Diaper",3]]},
+ {q:"Name something parents tell their children not to pick at.",answers:[["Scabs / Sores / Zit",47],["Their nose",38],["Their food",13],["Their butt crack",2]]},
+ {q:"Name something a husband sees on his wife's shopping list that makes him think she's planning murder.",answers:[["Poison / Antifreeze",36],["Gun / Bullets",28],["Knife",18],["Duct tape",4],["Rope",3],["Hammer",3],["Shovel",3]]},
+ {q:"What's the worst place to find a bug?",answers:[["Food / Drink",44],["In pants / On body",26],["In my bed",25],["In / On my phone",2]]},
+ {q:"Tell me another way people say 'got married.'",answers:[["Got hitched",79],["Tied the knot",5],["Eloped",5],["Jumped the broom",3],["Wed",3]]},
+ {q:"Fill in the blank: When it comes to my appetite I eat like a ___.",answers:[["Horse",28],["Pig",19],["Bird",13],["Normal person",6]]},
+ {q:"Name a job in the circus you'd hate.",answers:[["Poop scoop / Cleanup",38],["Tightrope walker",14],["Clown",14],["Animal trainer",13],["Trapeze / Acrobat",10],["Lion / Snake feeder",2]]},
+ {q:"What's the worst thing to accidentally swallow?",answers:[["Bug / Fly",43],["Coin / Money",7],["Poison",6],["Mouthwash",5],["Gum",4]]},
+ {q:"Give me a boy's name that starts with the letter 'H.'",answers:[["Harry / Harold",34],["Henry / Hank",33],["Howard",18],["Homer",6]]},
+ {q:"If the police arrested Cinderella, name a part of her story they'd never believe.",answers:[["Pumpkin coach",43],["Glass slipper",21],["Fairy godmother",12],["Midnight curfew",6],["Mice / Into horses",6],["The prince",4]]},
+ {q:"Name a food some people consider a delicacy and some others think is disgusting.",answers:[["Snails / Escargot",35],["Caviar / Fish eggs",27],["Sushi",10],["Oysters",7],["Octopus",3],["Frog legs",3]]}
 ].map(r=>({q:r.q,answers:r.answers.map(([a,p])=>({a,p}))}));
 const KEY='showdown-state-v1';
 // Questions from the original placeholder rounds, used only to upgrade stored state to the real cards.
 const OLD_Q=new Set(["Name something people forget to pack for a beach trip","Name a chore kids try to get out of","Name something you'd see at a backyard cookout","Name a reason someone might be late to work","Name something people do on a long road trip"]);
-const fresh=()=>({title:'Family Showdown',teams:[{name:'Team One',score:0},{name:'Team Two',score:0}],rounds:SAMPLE,ri:0,rev:[],showQ:false,strikes:0,mult:1,bank:0,awarded:-1,fx:null,sampleVer:1});
+const SAMPLE_VER=2;
+const fresh=()=>({title:'Family Showdown',teams:[{name:'Team One',score:0},{name:'Team Two',score:0}],rounds:SAMPLE,ri:0,rev:[],showQ:false,strikes:0,mult:1,bank:0,awarded:-1,fx:null,sampleVer:SAMPLE_VER});
 const load=()=>{try{const s=JSON.parse(localStorage.getItem(KEY));return s&&Array.isArray(s.rounds)?s:null}catch(e){return null}};
 let S=load()||fresh();
 // one-time upgrade: swap the placeholder rounds for the real card set while keeping any custom rounds the user added
-if(!S.sampleVer){const kept=S.rounds.filter(r=>!OLD_Q.has(r.q));S.rounds=SAMPLE.concat(kept);S.ri=0;S.rev=[];S.bank=0;S.strikes=0;S.awarded=-1;S.showQ=false;S.sampleVer=1;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+if((S.sampleVer||0)<SAMPLE_VER){const sampleQ=new Set(SAMPLE.map(r=>r.q));const custom=S.rounds.filter(r=>!OLD_Q.has(r.q)&&!sampleQ.has(r.q));const prev=S.rounds[S.ri||0];S.rounds=SAMPLE.concat(custom);if(prev){const i=S.rounds.findIndex(r=>r.q===prev.q);S.ri=i>=0?i:0;if(i<0){S.rev=[];S.bank=0;S.strikes=0;S.awarded=-1;S.showQ=false}}else{S.ri=0}S.sampleVer=SAMPLE_VER;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 let sound=true,lastFx=S.fx&&S.fx.id,builtFor=null,shown={bank:S.bank,s0:S.teams[0].score,s1:S.teams[1].score};
 let bc=null;try{bc=new BroadcastChannel('showdown')}catch(e){}
 const hist=[];
