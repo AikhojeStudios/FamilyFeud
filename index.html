@@ -237,16 +237,25 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 // Sample rounds written for testing — replace with your cards
 const SAMPLE=[
- {q:"Name something people forget to pack for a beach trip",answers:[["Sunscreen",34],["Towel",22],["Swimsuit",14],["Sunglasses",10],["Hat",7],["Flip-flops",5],["Snacks",4],["Phone charger",3]]},
- {q:"Name a chore kids try to get out of",answers:[["Washing dishes",31],["Cleaning their room",27],["Taking out the trash",16],["Laundry",9],["Vacuuming",7],["Making the bed",5],["Feeding the pets",3]]},
- {q:"Name something you'd see at a backyard cookout",answers:[["Grill",30],["Hot dogs",21],["Burgers",18],["Lawn chairs",10],["Cooler",8],["Music",6],["Cornhole",4]]},
- {q:"Name a reason someone might be late to work",answers:[["Traffic",41],["Overslept",25],["Car trouble",13],["The kids",9],["Weather",6],["Lost keys",4]]},
- {q:"Name something people do on a long road trip",answers:[["Sing along",28],["Sleep",24],["Snack",18],["Play games",12],["Stop for gas",8],["Argue",6]]}
+ {q:"Name someone you see once a year.",answers:[["Doctor / Dentist",36],["My family",34],["Santa",20],["My old pal",3]]},
+ {q:"Name an occupation where it's not good to have shaky hands.",answers:[["Doctor / Dentist",58],["Bomb squad / Demo.",13],["Jeweler / Engraver",7],["Police officer",5],["Waiter",4]]},
+ {q:"Name something you associate with British people.",answers:[["Their accent",30],["Afternoon tea",19],["Bad teeth",12],["Royalty / The Queen",11],["Bad food",9],["Snobby / Prim / Proper",4]]},
+ {q:"Name a kind of ball that doesn't bounce.",answers:[["Bowling ball",30],["Snowball",6],["Billiard ball",6],["A man's",6],["Baseball / Softball",5],["Ball bearing",5],["Meatball",5]]},
+ {q:"Name an office supply you might see a coworker using to pick their nose.",answers:[["Pen / Pencil",61],["Paper clip",26],["Stapler",4],["Letter opener",4],["Staple remover",2],["Scissors",2]]},
+ {q:"If you could get rid of one thing in your life for a whole year, what would you choose?",answers:[["Bills / Debt",33],["My job",12],["My fat",8],["Pain / Illness",7],["Stress / Drama",7],["Smoking habit / Cigs",4],["My in-laws",3]]},
+ {q:"Name something mice probably have nightmares about.",answers:[["Cats",58],["Traps",31],["Out of cheese",5],["Exterminator / People",2]]},
+ {q:"Name something they teach you to do at pirate training school.",answers:[["Say \"Arrrgh!\"",33],["Sword fight",24],["Steal / Find treasure",17],["Sail / Navigate",17],["Walk the plank",4],["Guzzle rum",4]]},
+ {q:"Name something a momma's boy might tell his girlfriend she does almost as well as his mom.",answers:[["Cooks / Bakes",91],["Cleans / Laundry",3],["Hugs him",2],["Dresses him",2]]},
+ {q:"Name a grocery item that only a really dumb bag boy / girl would put at the bottom of your bag.",answers:[["Eggs",46],["Bread",36],["Fruit",9],["Chips",2]]}
 ].map(r=>({q:r.q,answers:r.answers.map(([a,p])=>({a,p}))}));
 const KEY='showdown-state-v1';
-const fresh=()=>({title:'Family Showdown',teams:[{name:'Team One',score:0},{name:'Team Two',score:0}],rounds:SAMPLE,ri:0,rev:[],showQ:false,strikes:0,mult:1,bank:0,awarded:-1,fx:null});
+// Questions from the original placeholder rounds, used only to upgrade stored state to the real cards.
+const OLD_Q=new Set(["Name something people forget to pack for a beach trip","Name a chore kids try to get out of","Name something you'd see at a backyard cookout","Name a reason someone might be late to work","Name something people do on a long road trip"]);
+const fresh=()=>({title:'Family Showdown',teams:[{name:'Team One',score:0},{name:'Team Two',score:0}],rounds:SAMPLE,ri:0,rev:[],showQ:false,strikes:0,mult:1,bank:0,awarded:-1,fx:null,sampleVer:1});
 const load=()=>{try{const s=JSON.parse(localStorage.getItem(KEY));return s&&Array.isArray(s.rounds)?s:null}catch(e){return null}};
 let S=load()||fresh();
+// one-time upgrade: swap the placeholder rounds for the real card set while keeping any custom rounds the user added
+if(!S.sampleVer){const kept=S.rounds.filter(r=>!OLD_Q.has(r.q));S.rounds=SAMPLE.concat(kept);S.ri=0;S.rev=[];S.bank=0;S.strikes=0;S.awarded=-1;S.showQ=false;S.sampleVer=1;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 let sound=true,lastFx=S.fx&&S.fx.id,builtFor=null,shown={bank:S.bank,s0:S.teams[0].score,s1:S.teams[1].score};
 let bc=null;try{bc=new BroadcastChannel('showdown')}catch(e){}
 const hist=[];
